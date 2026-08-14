@@ -1,3 +1,4 @@
+// Path: backend/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -9,7 +10,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "moduleResolution": "node",  // <-- تغییر از "node10" به "node"
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
