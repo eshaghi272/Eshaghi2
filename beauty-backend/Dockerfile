@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # پورت
-EXPOSE 5000
+EXPOSE 10000
 
 # اجرای برنامه
 CMD ["npm", "start"]

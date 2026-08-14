@@ -9,7 +9,7 @@ services:
     rootDir: ./backend
     envVars:
       - key: PORT
-        value: 5000
+        value: 10000
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
