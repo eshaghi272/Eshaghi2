@@ -22,7 +22,9 @@ import galleryRoutes from './routes/gallery.routes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+
+// ===== تبدیل PORT به عدد =====
+const PORT: number = parseInt(process.env.PORT || '5000', 10);
 
 // ============================================
 // ===== تنظیمات CORS برای Render =====
@@ -33,19 +35,15 @@ const allowedOrigins = [
   'http://localhost:5000',
   'https://eshaghi2.onrender.com',
   'https://beautyclinic.vercel.app',
-  'https://beautyclinic-git-main-eshaghi272-8010s-projects.vercel.app',
-  'https://beautyclinic-357w5vcif-eshaghi272-8010s-projects.vercel.app',
-  /\.vercel\.app$/ // تمام دامنه‌های Vercel
+  /\.vercel\.app$/
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
       return callback(null, true);
     }
     
-    // Check if origin is allowed
     const isAllowed = allowedOrigins.some(allowed => {
       if (typeof allowed === 'string') {
         return origin === allowed;
@@ -61,7 +59,6 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log(`❌ CORS blocked: ${origin}`);
-      // برای تست، همه را مجاز کنید
       callback(null, true);
     }
   },
