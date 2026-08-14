@@ -1,19 +1,22 @@
-// Path: vercel.json (در ریشه پروژه - کنار پوشه‌های frontend و backend)
+// Path: vercel.json (در ریشه پروژه)
 {
   "version": 2,
   "builds": [
     {
-      "src": "frontend/**",
+      "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "frontend/dist"
+        "distDir": "dist"
       }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "frontend/dist/index.html"
+      "dest": "/dist/index.html"
     }
-  ]
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install"
 }
