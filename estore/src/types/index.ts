@@ -1,7 +1,4 @@
-// src/types/index.ts
-// تمام تایپ‌های اصلی پروژه در یک مکان
-
-export interface Product {
+﻿export interface Product {
   id: number;
   name: string;
   description: string;
@@ -37,4 +34,12 @@ export interface ProductCardProps {
   onAddToCart?: (product: Product) => void;
   onViewDetails?: (productId: number) => void;
   className?: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data: T;
+  count?: number;
+  error?: string;
 }
