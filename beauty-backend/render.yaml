@@ -1,12 +1,11 @@
 services:
   - type: web
     name: eshaghi2
-    runtime: node
+    runtime: docker
     repo: https://github.com/eshaghi272/Eshaghi2
     plan: free
     rootDir: beauty-backend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production
