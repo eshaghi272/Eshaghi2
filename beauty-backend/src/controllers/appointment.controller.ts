@@ -36,7 +36,7 @@ export class AppointmentController {
 
       query += ' ORDER BY a.createdAt DESC';
 
-      const appointments = db.prepare(query).all(...params);
+      const appointments = db.prepare(query).all(...params) as any[];
       res.json(appointments);
     } catch (error) {
       console.error('Get appointments error:', error);
@@ -59,7 +59,7 @@ export class AppointmentController {
         LEFT JOIN tbl_users d ON a.doctorId = d.id
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         WHERE a.id = ?
-      `).get(id);
+      `).get(id) as any;
 
       if (!appointment) {
         return res.status(404).json({ message: 'نوبت یافت نشد' });
@@ -85,7 +85,7 @@ export class AppointmentController {
       const conflict = db.prepare(`
         SELECT * FROM tbl_appointments 
         WHERE doctorId = ? AND fdate = ? AND appointmentTime = ? AND status != 'cancelled'
-      `).get(doctorId, fdate, appointmentTime);
+      `).get(doctorId, fdate, appointmentTime) as any;
 
       if (conflict) {
         return res.status(409).json({ message: 'این زمان قبلاً رزرو شده است' });
@@ -107,7 +107,7 @@ export class AppointmentController {
         LEFT JOIN tbl_users d ON a.doctorId = d.id
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         WHERE a.id = ?
-      `).get(result.lastInsertRowid);
+      `).get(result.lastInsertRowid) as any;
 
       res.status(201).json({ message: 'نوبت با موفقیت رزرو شد', appointment });
     } catch (error) {
@@ -122,7 +122,7 @@ export class AppointmentController {
       const { id } = req.params;
       const { fdate, appointmentTime, status, notes } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id) as any;
       if (!existing) {
         return res.status(404).json({ message: 'نوبت یافت نشد' });
       }
@@ -140,7 +140,7 @@ export class AppointmentController {
         id
       );
 
-      const appointment = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id);
+      const appointment = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id) as any;
       res.json({ message: 'نوبت با موفقیت بروزرسانی شد', appointment });
     } catch (error) {
       console.error('Update appointment error:', error);
@@ -153,7 +153,7 @@ export class AppointmentController {
     try {
       const { id } = req.params;
       
-      const existing = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_appointments WHERE id = ?').get(id) as any;
       if (!existing) {
         return res.status(404).json({ message: 'نوبت یافت نشد' });
       }
@@ -181,7 +181,7 @@ export class AppointmentController {
       }
 
       // تمام زمان‌های ممکن (۹ صبح تا ۶ عصر با فواصل ۳۰ دقیقه)
-      const allSlots = [];
+      const allSlots: string[] = [];
       for (let hour = 9; hour < 18; hour++) {
         for (let minute = 0; minute < 60; minute += 30) {
           const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -193,7 +193,7 @@ export class AppointmentController {
       const booked = db.prepare(`
         SELECT appointmentTime FROM tbl_appointments 
         WHERE doctorId = ? AND fdate = ? AND status != 'cancelled'
-      `).all(doctorId, date);
+      `).all(doctorId, date) as any[];
 
       const bookedTimes = booked.map((b: any) => b.appointmentTime);
       const availableSlots = allSlots.filter(slot => !bookedTimes.includes(slot));

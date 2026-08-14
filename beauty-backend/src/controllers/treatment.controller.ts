@@ -6,7 +6,9 @@ export class TreatmentController {
   // ========== دریافت لیست درمان‌ها ==========
   static async getTreatments(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { patientId, doctorId, status } = req.query;
+      
       let query = `
         SELECT 
           t.*,
@@ -15,9 +17,9 @@ export class TreatmentController {
         FROM tbl_treatments t
         LEFT JOIN tbl_users u ON t.patientId = u.id
         LEFT JOIN tbl_users d ON t.doctorId = d.id
-        WHERE 1=1
+        WHERE t.clinicId = ?
       `;
-      const params: any[] = [];
+      const params: any[] = [clinicId];
 
       if (patientId) {
         query += ' AND t.patientId = ?';
@@ -34,18 +36,18 @@ export class TreatmentController {
 
       query += ' ORDER BY t.createdAt DESC';
 
-      const treatments = db.prepare(query).all(...params);
+      const treatments = db.prepare(query).all(...params) as any[];
       
       // دریافت اقلام برای هر درمان
       for (const treatment of treatments) {
         const items = db.prepare(`
           SELECT * FROM tbl_treatment_items WHERE treatmentId = ?
-        `).all(treatment.id);
+        `).all(treatment.id) as any[];
         treatment.items = items;
         
         const extraCosts = db.prepare(`
           SELECT * FROM tbl_treatment_extra_costs WHERE treatmentId = ?
-        `).all(treatment.id);
+        `).all(treatment.id) as any[];
         treatment.extraCosts = extraCosts;
       }
 
@@ -60,6 +62,7 @@ export class TreatmentController {
   static async getTreatmentById(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       
       const treatment = db.prepare(`
         SELECT 
@@ -69,23 +72,21 @@ export class TreatmentController {
         FROM tbl_treatments t
         LEFT JOIN tbl_users u ON t.patientId = u.id
         LEFT JOIN tbl_users d ON t.doctorId = d.id
-        WHERE t.id = ?
-      `).get(id);
+        WHERE t.id = ? AND t.clinicId = ?
+      `).get(id, clinicId) as any;
 
       if (!treatment) {
         return res.status(404).json({ message: 'درمان یافت نشد' });
       }
 
-      // دریافت اقلام
       const items = db.prepare(`
         SELECT * FROM tbl_treatment_items WHERE treatmentId = ?
-      `).all(id);
+      `).all(id) as any[];
       treatment.items = items;
 
-      // دریافت هزینه‌های اضافی
       const extraCosts = db.prepare(`
         SELECT * FROM tbl_treatment_extra_costs WHERE treatmentId = ?
-      `).all(id);
+      `).all(id) as any[];
       treatment.extraCosts = extraCosts;
 
       res.json(treatment);
@@ -98,45 +99,45 @@ export class TreatmentController {
   // ========== دریافت اطلاعات فرم ==========
   static async getTreatmentFormData(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
+
       const patients = db.prepare(`
         SELECT id, fullName, mobile 
         FROM tbl_users 
-        WHERE role = 'patient' AND isActive = 1
+        WHERE role = 'patient' AND isActive = 1 AND clinicId = ?
         ORDER BY fullName
-      `).all();
+      `).all(clinicId) as any[];
 
       const doctors = db.prepare(`
         SELECT 
-          u.id, 
-          u.fullName,
-          d.specialty,
-          d.consultationFee
+          u.id, u.fullName,
+          d.specialty, d.consultationFee
         FROM tbl_users u
         LEFT JOIN tbl_doctors d ON d.userId = u.id
-        WHERE u.role = 'doctor' AND u.isActive = 1
+        WHERE u.role = 'doctor' AND u.isActive = 1 AND u.clinicId = ?
         ORDER BY u.fullName
-      `).all();
+      `).all(clinicId) as any[];
 
       const services = db.prepare(`
         SELECT id, name, price, durationMinutes
         FROM tbl_services 
-        WHERE isActive = 1
+        WHERE isActive = 1 AND clinicId = ?
         ORDER BY name
-      `).all();
+      `).all(clinicId) as any[];
 
       const materials = db.prepare(`
         SELECT id, name, unit, pricePerUnit, quantity
         FROM tbl_materials 
-        WHERE isActive = 1 AND quantity > 0
+        WHERE isActive = 1 AND quantity > 0 AND clinicId = ?
         ORDER BY name
-      `).all();
+      `).all(clinicId) as any[];
 
       const medicines = db.prepare(`
         SELECT id, name, unit, pricePerUnit, quantity
         FROM tbl_medicines 
-        WHERE isActive = 1 AND quantity > 0
+        WHERE isActive = 1 AND quantity > 0 AND clinicId = ?
         ORDER BY name
-      `).all();
+      `).all(clinicId) as any[];
 
       res.json({
         patients,
@@ -154,27 +155,17 @@ export class TreatmentController {
   // ========== ثبت درمان جدید ==========
   static async createTreatment(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { 
-        patientId, 
-        doctorId, 
-        serviceId, 
-        serviceName, 
-        servicePrice, 
-        discountAmount, 
-        discountPercent, 
-        description, 
-        materials, 
-        medicines, 
-        extraCosts 
+        patientId, doctorId, serviceId, serviceName, servicePrice,
+        discountAmount, discountPercent, description,
+        materials, medicines, extraCosts 
       } = req.body;
-
-      console.log('📝 Creating treatment:', { patientId, doctorId, serviceId });
 
       if (!patientId || !doctorId || !serviceId) {
         return res.status(400).json({ message: 'اطلاعات بیمار، پزشک و خدمت الزامی است' });
       }
 
-      // محاسبه قیمت نهایی
       let finalPrice = servicePrice || 0;
       let discount = 0;
 
@@ -186,63 +177,54 @@ export class TreatmentController {
         finalPrice = servicePrice - discount;
       }
 
-      // ثبت درمان اصلی
       const stmt = db.prepare(`
         INSERT INTO tbl_treatments (
-          patientId, doctorId, serviceId, serviceName, servicePrice,
+          clinicId, patientId, doctorId, serviceId, serviceName, servicePrice,
           discountAmount, discountPercent, finalPrice, description,
           totalMaterialsCost, totalMedicinesCost, totalExtraCosts,
           doctorWage, clinicProfit, finalTotal,
           paymentStatus, paidAmount, remainingAmount
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      // محاسبات اولیه
       const doctorWage = Math.round(finalPrice * 0.6);
       const clinicProfit = finalPrice - doctorWage;
       let totalMaterialsCost = 0;
       let totalMedicinesCost = 0;
       let totalExtraCosts = 0;
-      const finalTotal = finalPrice + totalMaterialsCost + totalMedicinesCost + totalExtraCosts;
+      const finalTotal = finalPrice;
 
       const result = stmt.run(
-        patientId,
-        doctorId,
-        serviceId,
+        clinicId,
+        patientId, doctorId, serviceId,
         serviceName || 'خدمت',
         servicePrice || 0,
         discount || 0,
         discountPercent || 0,
         finalPrice,
         description || null,
-        totalMaterialsCost,
-        totalMedicinesCost,
-        totalExtraCosts,
-        doctorWage,
-        clinicProfit,
-        finalTotal,
-        'pending',
-        0,
-        finalTotal
+        totalMaterialsCost, totalMedicinesCost, totalExtraCosts,
+        doctorWage, clinicProfit, finalTotal,
+        'pending', 0, finalTotal
       );
 
       const treatmentId = result.lastInsertRowid;
-      console.log('✅ Treatment created with ID:', treatmentId);
 
-      // ثبت مواد مصرفی
       let finalMaterialsCost = 0;
       if (materials && Array.isArray(materials) && materials.length > 0) {
         const itemStmt = db.prepare(`
           INSERT INTO tbl_treatment_items (
-            treatmentId, itemType, itemId, itemName, unit, quantityUsed, pricePerUnit, totalPrice
+            clinicId, treatmentId, itemType, itemId, itemName, unit,
+            quantityUsed, pricePerUnit, totalPrice
           )
-          VALUES (?, 'material', ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, 'material', ?, ?, ?, ?, ?, ?)
         `);
         for (const mat of materials) {
           const totalPrice = mat.quantityUsed * mat.pricePerUnit;
-          const material = db.prepare('SELECT unit FROM tbl_materials WHERE id = ?').get(mat.materialId);
+          const material = db.prepare('SELECT unit FROM tbl_materials WHERE id = ?').get(mat.materialId) as any;
           itemStmt.run(
+            clinicId,
             treatmentId,
             mat.materialId,
             mat.materialName,
@@ -253,22 +235,22 @@ export class TreatmentController {
           );
           finalMaterialsCost += totalPrice;
         }
-        console.log('✅ Materials added:', materials.length);
       }
 
-      // ثبت داروها
       let finalMedicinesCost = 0;
       if (medicines && Array.isArray(medicines) && medicines.length > 0) {
         const itemStmt = db.prepare(`
           INSERT INTO tbl_treatment_items (
-            treatmentId, itemType, itemId, itemName, unit, quantityUsed, pricePerUnit, totalPrice, dosage, instructions
+            clinicId, treatmentId, itemType, itemId, itemName, unit,
+            quantityUsed, pricePerUnit, totalPrice, dosage, instructions
           )
-          VALUES (?, 'medicine', ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, 'medicine', ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         for (const med of medicines) {
           const totalPrice = med.quantityUsed * med.pricePerUnit;
-          const medicine = db.prepare('SELECT unit FROM tbl_medicines WHERE id = ?').get(med.medicineId);
+          const medicine = db.prepare('SELECT unit FROM tbl_medicines WHERE id = ?').get(med.medicineId) as any;
           itemStmt.run(
+            clinicId,
             treatmentId,
             med.medicineId,
             med.medicineName,
@@ -281,24 +263,20 @@ export class TreatmentController {
           );
           finalMedicinesCost += totalPrice;
         }
-        console.log('✅ Medicines added:', medicines.length);
       }
 
-      // ثبت هزینه‌های اضافی
       let finalExtraCosts = 0;
       if (extraCosts && Array.isArray(extraCosts) && extraCosts.length > 0) {
         const extraStmt = db.prepare(`
-          INSERT INTO tbl_treatment_extra_costs (treatmentId, description, amount)
-          VALUES (?, ?, ?)
+          INSERT INTO tbl_treatment_extra_costs (clinicId, treatmentId, description, amount)
+          VALUES (?, ?, ?, ?)
         `);
         for (const cost of extraCosts) {
-          extraStmt.run(treatmentId, cost.description, cost.amount);
+          extraStmt.run(clinicId, treatmentId, cost.description, cost.amount);
           finalExtraCosts += cost.amount;
         }
-        console.log('✅ Extra costs added:', extraCosts.length);
       }
 
-      // بروزرسانی خلاصه هزینه‌ها
       const finalTotalWithItems = finalPrice + finalMaterialsCost + finalMedicinesCost + finalExtraCosts;
       const newDoctorWage = Math.round(finalPrice * 0.6);
       const newClinicProfit = finalPrice - newDoctorWage;
@@ -313,16 +291,11 @@ export class TreatmentController {
           finalTotal = ?
         WHERE id = ?
       `).run(
-        finalMaterialsCost,
-        finalMedicinesCost,
-        finalExtraCosts,
-        newDoctorWage,
-        newClinicProfit,
-        finalTotalWithItems,
+        finalMaterialsCost, finalMedicinesCost, finalExtraCosts,
+        newDoctorWage, newClinicProfit, finalTotalWithItems,
         treatmentId
       );
 
-      // دریافت اطلاعات کامل
       const treatment = db.prepare(`
         SELECT 
           t.*,
@@ -332,23 +305,15 @@ export class TreatmentController {
         LEFT JOIN tbl_users u ON t.patientId = u.id
         LEFT JOIN tbl_users d ON t.doctorId = d.id
         WHERE t.id = ?
-      `).get(treatmentId);
+      `).get(treatmentId) as any;
 
-      // دریافت اقلام
-      const items = db.prepare(`
-        SELECT * FROM tbl_treatment_items WHERE treatmentId = ?
-      `).all(treatmentId);
+      const items = db.prepare(`SELECT * FROM tbl_treatment_items WHERE treatmentId = ?`).all(treatmentId) as any[];
       treatment.items = items;
 
-      const extraCostsList = db.prepare(`
-        SELECT * FROM tbl_treatment_extra_costs WHERE treatmentId = ?
-      `).all(treatmentId);
+      const extraCostsList = db.prepare(`SELECT * FROM tbl_treatment_extra_costs WHERE treatmentId = ?`).all(treatmentId) as any[];
       treatment.extraCosts = extraCostsList;
 
-      res.status(201).json({
-        message: 'درمان با موفقیت ثبت شد',
-        treatment
-      });
+      res.status(201).json({ message: 'درمان با موفقیت ثبت شد', treatment });
     } catch (error) {
       console.error('Create treatment error:', error);
       res.status(500).json({ message: 'خطا در ثبت درمان: ' + (error as Error).message });
@@ -359,9 +324,10 @@ export class TreatmentController {
   static async updatePaymentStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       const { paymentStatus, paidAmount, paymentMethod } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'درمان یافت نشد' });
       }
@@ -375,18 +341,17 @@ export class TreatmentController {
         newRemainingAmount = 0;
       }
 
-      const stmt = db.prepare(`
+      db.prepare(`
         UPDATE tbl_treatments 
         SET paymentStatus = ?, paidAmount = ?, remainingAmount = ?, paymentMethod = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `);
-      stmt.run(newPaymentStatus, newPaidAmount, newRemainingAmount, paymentMethod || null, id);
+        WHERE id = ? AND clinicId = ?
+      `).run(newPaymentStatus, newPaidAmount, newRemainingAmount, paymentMethod || null, id, clinicId);
 
       if (newPaymentStatus === 'paid') {
-        db.prepare('UPDATE tbl_treatments SET status = "completed" WHERE id = ?').run(id);
+        db.prepare('UPDATE tbl_treatments SET status = "completed" WHERE id = ? AND clinicId = ?').run(id, clinicId);
       }
 
-      const treatment = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id);
+      const treatment = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id) as any;
       res.json({ message: 'وضعیت پرداخت با موفقیت بروزرسانی شد', treatment });
     } catch (error) {
       console.error('Update payment status error:', error);
@@ -397,6 +362,7 @@ export class TreatmentController {
   // ========== گزارش مالی ==========
   static async getFinancialReport(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { startDate, endDate } = req.query;
 
       let query = `
@@ -411,10 +377,10 @@ export class TreatmentController {
           SUM(CASE WHEN paymentStatus = 'paid' THEN finalTotal ELSE 0 END) as paidRevenue,
           SUM(CASE WHEN paymentStatus = 'pending' THEN finalTotal ELSE 0 END) as pendingRevenue
         FROM tbl_treatments
-        WHERE status = 'completed'
+        WHERE clinicId = ? AND status = 'completed'
       `;
 
-      const params: any[] = [];
+      const params: any[] = [clinicId];
       if (startDate) {
         query += ' AND performedAt >= ?';
         params.push(startDate);
@@ -424,7 +390,7 @@ export class TreatmentController {
         params.push(endDate);
       }
 
-      const report = db.prepare(query).get(...params);
+      const report = db.prepare(query).get(...params) as any;
       res.json(report || {
         totalTreatments: 0,
         totalRevenue: 0,
@@ -445,32 +411,37 @@ export class TreatmentController {
   // ========== مواد مصرفی ==========
   static async getMaterials(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
+
       const materials = db.prepare(`
         SELECT id, name, unit, pricePerUnit, quantity
         FROM tbl_materials 
-        WHERE isActive = 1 AND quantity > 0
+        WHERE isActive = 1 AND quantity > 0 AND clinicId = ?
         ORDER BY name
-      `).all();
+      `).all(clinicId) as any[];
+      
       res.json(materials);
     } catch (error) {
       console.error('Get materials error:', error);
       res.status(500).json({ message: 'خطا در دریافت مواد مصرفی' });
     }
   }
+
   // ========== بروزرسانی درمان ==========
   static async updateTreatment(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       const { status, description } = req.body;
-  
-      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id);
+
+      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'درمان یافت نشد' });
       }
-  
+
       let updateFields: string[] = [];
       let params: any[] = [];
-  
+
       if (status) {
         updateFields.push('status = ?');
         params.push(status);
@@ -479,56 +450,59 @@ export class TreatmentController {
         updateFields.push('description = ?');
         params.push(description);
       }
-  
+
       if (updateFields.length === 0) {
         return res.status(400).json({ message: 'اطلاعاتی برای بروزرسانی ارسال نشده است' });
       }
-  
+
       updateFields.push('updatedAt = CURRENT_TIMESTAMP');
       params.push(id);
-  
-      const query = `UPDATE tbl_treatments SET ${updateFields.join(', ')} WHERE id = ?`;
-      db.prepare(query).run(...params);
-  
-      const treatment = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id);
+
+      const query = `UPDATE tbl_treatments SET ${updateFields.join(', ')} WHERE id = ? AND clinicId = ?`;
+      db.prepare(query).run(...params, clinicId);
+
+      const treatment = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id) as any;
       res.json({ message: 'درمان با موفقیت بروزرسانی شد', treatment });
     } catch (error) {
       console.error('Update treatment error:', error);
       res.status(500).json({ message: 'خطا در بروزرسانی درمان' });
     }
   }
-  
+
   // ========== حذف درمان ==========
   static async deleteTreatment(req: Request, res: Response) {
     try {
       const { id } = req.params;
-  
-      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ?').get(id);
+      const clinicId = req.user?.clinicId || 1;
+
+      const existing = db.prepare('SELECT * FROM tbl_treatments WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'درمان یافت نشد' });
       }
-  
-      // حذف اقلام مربوطه
-      db.prepare('DELETE FROM tbl_treatment_items WHERE treatmentId = ?').run(id);
-      db.prepare('DELETE FROM tbl_treatment_extra_costs WHERE treatmentId = ?').run(id);
-      db.prepare('DELETE FROM tbl_treatments WHERE id = ?').run(id);
-  
+
+      db.prepare('DELETE FROM tbl_treatment_items WHERE treatmentId = ? AND clinicId = ?').run(id, clinicId);
+      db.prepare('DELETE FROM tbl_treatment_extra_costs WHERE treatmentId = ? AND clinicId = ?').run(id, clinicId);
+      db.prepare('DELETE FROM tbl_treatments WHERE id = ? AND clinicId = ?').run(id, clinicId);
+
       res.json({ message: 'درمان با موفقیت حذف شد' });
     } catch (error) {
       console.error('Delete treatment error:', error);
       res.status(500).json({ message: 'خطا در حذف درمان' });
     }
   }
-  
+
   // ========== داروها ==========
   static async getMedicines(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
+
       const medicines = db.prepare(`
         SELECT id, name, unit, pricePerUnit, quantity
         FROM tbl_medicines 
-        WHERE isActive = 1 AND quantity > 0
+        WHERE isActive = 1 AND quantity > 0 AND clinicId = ?
         ORDER BY name
-      `).all();
+      `).all(clinicId) as any[];
+      
       res.json(medicines);
     } catch (error) {
       console.error('Get medicines error:', error);

@@ -15,7 +15,7 @@ export class SiteController {
         SELECT id, key, value, type, groupName, label, description
         FROM tbl_site_settings 
         WHERE clinicId = ? AND isActive = 1
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
       const groupedSettings: Record<string, any> = {};
       settings.forEach((setting: any) => {
@@ -46,7 +46,7 @@ export class SiteController {
         FROM tbl_sliders 
         WHERE clinicId = ? AND isActive = 1
         ORDER BY "order" ASC
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
       res.json(sliders);
     } catch (error) {
@@ -68,7 +68,7 @@ export class SiteController {
         FROM tbl_features 
         WHERE clinicId = ? AND isActive = 1
         ORDER BY "order" ASC
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
       res.json(features);
     } catch (error) {
@@ -91,7 +91,7 @@ export class SiteController {
         WHERE clinicId = ? AND isActive = 1
         ORDER BY id DESC
         LIMIT 1
-      `).get(clinicId);
+      `).get(clinicId) as any;
 
       res.json(contact || {});
     } catch (error) {
@@ -128,7 +128,7 @@ export class SiteController {
         order || 0
       );
 
-      const slider = db.prepare('SELECT * FROM tbl_sliders WHERE id = ?').get(result.lastInsertRowid);
+      const slider = db.prepare('SELECT * FROM tbl_sliders WHERE id = ?').get(result.lastInsertRowid) as any;
 
       res.status(201).json({ message: 'اسلایدر با موفقیت ایجاد شد', slider });
     } catch (error) {
@@ -143,7 +143,7 @@ export class SiteController {
       const clinicId = req.user?.clinicId || 1;
       const { title, description, imageUrl, buttonText, buttonLink, order, isActive } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_sliders WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_sliders WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'اسلایدر یافت نشد' });
       }
@@ -173,7 +173,7 @@ export class SiteController {
         clinicId
       );
 
-      const slider = db.prepare('SELECT * FROM tbl_sliders WHERE id = ?').get(id);
+      const slider = db.prepare('SELECT * FROM tbl_sliders WHERE id = ?').get(id) as any;
 
       res.json({ message: 'اسلایدر با موفقیت بروزرسانی شد', slider });
     } catch (error) {
@@ -187,7 +187,7 @@ export class SiteController {
       const { id } = req.params;
       const clinicId = req.user?.clinicId || 1;
 
-      const existing = db.prepare('SELECT * FROM tbl_sliders WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_sliders WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'اسلایدر یافت نشد' });
       }
@@ -221,7 +221,7 @@ export class SiteController {
 
       const result = stmt.run(clinicId, icon, title, description, order || 0);
 
-      const feature = db.prepare('SELECT * FROM tbl_features WHERE id = ?').get(result.lastInsertRowid);
+      const feature = db.prepare('SELECT * FROM tbl_features WHERE id = ?').get(result.lastInsertRowid) as any;
 
       res.status(201).json({ message: 'ویژگی با موفقیت ایجاد شد', feature });
     } catch (error) {
@@ -236,7 +236,7 @@ export class SiteController {
       const clinicId = req.user?.clinicId || 1;
       const { icon, title, description, order, isActive } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_features WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_features WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'ویژگی یافت نشد' });
       }
@@ -262,7 +262,7 @@ export class SiteController {
         clinicId
       );
 
-      const feature = db.prepare('SELECT * FROM tbl_features WHERE id = ?').get(id);
+      const feature = db.prepare('SELECT * FROM tbl_features WHERE id = ?').get(id) as any;
 
       res.json({ message: 'ویژگی با موفقیت بروزرسانی شد', feature });
     } catch (error) {
@@ -276,7 +276,7 @@ export class SiteController {
       const { id } = req.params;
       const clinicId = req.user?.clinicId || 1;
 
-      const existing = db.prepare('SELECT * FROM tbl_features WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_features WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'ویژگی یافت نشد' });
       }

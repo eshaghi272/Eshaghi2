@@ -26,7 +26,7 @@ export class GalleryController {
 
       query += ' ORDER BY "order" ASC, createdAt DESC';
 
-      const gallery = db.prepare(query).all(...params);
+      const gallery = db.prepare(query).all(...params) as any[];
       res.json(gallery);
     } catch (error) {
       console.error('❌ Get gallery error:', error);
@@ -47,9 +47,9 @@ export class GalleryController {
         FROM tbl_gallery 
         WHERE clinicId = ? AND isActive = 1
         ORDER BY category ASC
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
-      res.json(categories.map(c => c.category));
+      res.json(categories.map((c: any) => c.category));
     } catch (error) {
       console.error('❌ Get categories error:', error);
       res.status(500).json({ message: 'خطا در دریافت دسته‌بندی‌ها' });
@@ -85,7 +85,7 @@ export class GalleryController {
         order || 0
       );
 
-      const item = db.prepare('SELECT * FROM tbl_gallery WHERE id = ?').get(result.lastInsertRowid);
+      const item = db.prepare('SELECT * FROM tbl_gallery WHERE id = ?').get(result.lastInsertRowid) as any;
 
       res.status(201).json({ message: 'تصویر با موفقیت اضافه شد', item });
     } catch (error) {
@@ -100,7 +100,7 @@ export class GalleryController {
       const clinicId = req.user?.clinicId || 1;
       const { category, title, description, imageUrl, beforeImageUrl, afterImageUrl, order, isActive } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_gallery WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_gallery WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'تصویر یافت نشد' });
       }
@@ -132,7 +132,7 @@ export class GalleryController {
         clinicId
       );
 
-      const item = db.prepare('SELECT * FROM tbl_gallery WHERE id = ?').get(id);
+      const item = db.prepare('SELECT * FROM tbl_gallery WHERE id = ?').get(id) as any;
 
       res.json({ message: 'تصویر با موفقیت بروزرسانی شد', item });
     } catch (error) {
@@ -146,7 +146,7 @@ export class GalleryController {
       const { id } = req.params;
       const clinicId = req.user?.clinicId || 1;
 
-      const existing = db.prepare('SELECT * FROM tbl_gallery WHERE id = ? AND clinicId = ?').get(id, clinicId);
+      const existing = db.prepare('SELECT * FROM tbl_gallery WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'تصویر یافت نشد' });
       }

@@ -142,7 +142,7 @@ export class DashboardController {
           COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled
         FROM tbl_appointments
         WHERE clinicId = ?
-      `).get(clinicId);
+      `).get(clinicId) as any;
 
       res.json(stats);
     } catch (error) {
@@ -166,7 +166,7 @@ export class DashboardController {
         GROUP BY strftime('%Y-%m', createdAt)
         ORDER BY createdAt DESC
         LIMIT ?
-      `).all(clinicId, limit);
+      `).all(clinicId, limit) as any[];
 
       res.json(revenue);
     } catch (error) {
@@ -190,7 +190,7 @@ export class DashboardController {
         WHERE u.role = 'doctor' AND u.isActive = 1 AND u.clinicId = ?
         GROUP BY u.id
         ORDER BY totalAppointments DESC
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
       res.json(stats);
     } catch (error) {
@@ -216,7 +216,7 @@ export class DashboardController {
         GROUP BY s.id
         ORDER BY totalAppointments DESC
         LIMIT ?
-      `).all(clinicId, Number(limit));
+      `).all(clinicId, Number(limit)) as any[];
 
       res.json(services);
     } catch (error) {
@@ -247,7 +247,7 @@ export class DashboardController {
         WHERE a.clinicId = ?
         ORDER BY a.createdAt DESC
         LIMIT ?
-      `).all(clinicId, Number(limit));
+      `).all(clinicId, Number(limit)) as any[];
 
       res.json(appointments);
     } catch (error) {
@@ -270,7 +270,7 @@ export class DashboardController {
         FROM tbl_materials 
         WHERE clinicId = ? AND isActive = 1 AND quantity <= minThreshold
         ORDER BY quantity ASC
-      `).all(clinicId);
+      `).all(clinicId) as any[];
 
       res.json(items);
     } catch (error) {
@@ -286,7 +286,7 @@ export class DashboardController {
       const clinic = db.prepare(`
         SELECT id, clinicName, clinicCode, address, phone, email, website, managerName, isActive
         FROM tbl_clinics WHERE id = ?
-      `).get(clinicId);
+      `).get(clinicId) as any;
 
       if (!clinic) {
         return res.status(404).json({ message: 'کلینیک یافت نشد' });
@@ -314,7 +314,7 @@ export class DashboardController {
           COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled
         FROM tbl_treatments
         WHERE clinicId = ?
-      `).get(clinicId);
+      `).get(clinicId) as any;
 
       res.json(stats);
     } catch (error) {
@@ -324,10 +324,9 @@ export class DashboardController {
   }
 
   // ============================================
-  // ===== مسیرهای بیمار (اصلاح شده) =====
+  // ===== مسیرهای بیمار =====
   // ============================================
 
-  // ========== دریافت اطلاعات پروفایل بیمار ==========
   static async getPatientProfile(req: Request, res: Response) {
     try {
       const userId = req.user?.id;
@@ -335,15 +334,10 @@ export class DashboardController {
 
       const patient = db.prepare(`
         SELECT 
-          id,
-          fullName,
-          mobile,
-          email,
-          nationalCode,
-          createdAt
+          id, fullName, mobile, email, nationalCode, createdAt
         FROM tbl_users 
         WHERE id = ? AND role = 'patient' AND isActive = 1 AND clinicId = ?
-      `).get(userId, clinicId);
+      `).get(userId, clinicId) as any;
 
       if (!patient) {
         return res.status(404).json({ message: 'بیمار یافت نشد' });
@@ -356,7 +350,6 @@ export class DashboardController {
     }
   }
 
-  // ========== دریافت نوبت‌های بیمار ==========
   static async getPatientAppointments(req: Request, res: Response) {
     try {
       const userId = req.user?.id;
@@ -364,11 +357,7 @@ export class DashboardController {
 
       const appointments = db.prepare(`
         SELECT 
-          a.id,
-          a.fdate,
-          a.appointmentTime,
-          a.status,
-          a.notes,
+          a.id, a.fdate, a.appointmentTime, a.status, a.notes,
           u.fullName as doctorName,
           s.name as serviceName,
           s.price as servicePrice
@@ -377,7 +366,7 @@ export class DashboardController {
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         WHERE a.patientId = ? AND a.clinicId = ?
         ORDER BY a.createdAt DESC
-      `).all(userId, clinicId);
+      `).all(userId, clinicId) as any[];
 
       res.json(appointments);
     } catch (error) {
@@ -386,7 +375,6 @@ export class DashboardController {
     }
   }
 
-  // ========== دریافت درمان‌های بیمار ==========
   static async getPatientTreatments(req: Request, res: Response) {
     try {
       const userId = req.user?.id;
@@ -394,18 +382,14 @@ export class DashboardController {
 
       const treatments = db.prepare(`
         SELECT 
-          t.id,
-          t.serviceName,
-          t.finalPrice,
-          t.status,
-          t.description,
+          t.id, t.serviceName, t.finalPrice, t.status, t.description,
           t.createdAt as treatmentDate,
           u.fullName as doctorName
         FROM tbl_treatments t
         LEFT JOIN tbl_users u ON t.doctorId = u.id
         WHERE t.patientId = ? AND t.clinicId = ?
         ORDER BY t.createdAt DESC
-      `).all(userId, clinicId);
+      `).all(userId, clinicId) as any[];
 
       res.json(treatments);
     } catch (error) {
@@ -414,23 +398,19 @@ export class DashboardController {
     }
   }
 
-  // ========== دریافت آمار داشبورد بیمار ==========
   static async getPatientStats(req: Request, res: Response) {
     try {
       const userId = req.user?.id;
       const clinicId = req.user?.clinicId || 1;
 
-      // تعداد کل نوبت‌ها
       const totalAppointments = db.prepare(
         "SELECT COUNT(*) as count FROM tbl_appointments WHERE patientId = ? AND clinicId = ?"
       ).get(userId, clinicId) as { count: number };
 
-      // نوبت‌های در انتظار
       const pendingAppointments = db.prepare(
         "SELECT COUNT(*) as count FROM tbl_appointments WHERE patientId = ? AND status = 'pending' AND clinicId = ?"
       ).get(userId, clinicId) as { count: number };
 
-      // نوبت‌های تایید شده (آینده)
       const upcomingAppointments = db.prepare(`
         SELECT COUNT(*) as count 
         FROM tbl_appointments 
@@ -440,31 +420,26 @@ export class DashboardController {
         AND clinicId = ?
       `).get(userId, getTodayPersian(), clinicId) as { count: number };
 
-      // نوبت‌های تکمیل شده
       const completedAppointments = db.prepare(
         "SELECT COUNT(*) as count FROM tbl_appointments WHERE patientId = ? AND status = 'completed' AND clinicId = ?"
       ).get(userId, clinicId) as { count: number };
 
-      // تعداد درمان‌ها
       const totalTreatments = db.prepare(
         "SELECT COUNT(*) as count FROM tbl_treatments WHERE patientId = ? AND clinicId = ?"
       ).get(userId, clinicId) as { count: number };
 
-      // مجموع هزینه‌ها
       const totalSpent = db.prepare(`
         SELECT COALESCE(SUM(finalPrice), 0) as total 
         FROM tbl_treatments 
         WHERE patientId = ? AND status = 'completed' AND clinicId = ?
       `).get(userId, clinicId) as { total: number };
 
-      // آخرین مراجعه
       const lastVisit = db.prepare(`
         SELECT fdate 
         FROM tbl_appointments 
         WHERE patientId = ? AND status = 'completed' AND clinicId = ?
-        ORDER BY fdate DESC 
-        LIMIT 1
-      `).get(userId, clinicId) as { fdate: string } | undefined;
+        ORDER BY fdate DESC LIMIT 1
+      `).get(userId, clinicId) as any;
 
       res.json({
         totalAppointments: totalAppointments?.count || 0,
@@ -492,15 +467,10 @@ export class DashboardController {
 
       const doctor = db.prepare(`
         SELECT 
-          u.id,
-          u.fullName,
-          u.mobile,
-          u.email,
-          u.nationalCode,
-          u.createdAt
-        FROM tbl_users u
-        WHERE u.id = ? AND u.role = 'doctor' AND u.isActive = 1 AND u.clinicId = ?
-      `).get(userId, clinicId);
+          id, fullName, mobile, email, nationalCode, createdAt
+        FROM tbl_users 
+        WHERE id = ? AND role = 'doctor' AND isActive = 1 AND clinicId = ?
+      `).get(userId, clinicId) as any;
 
       if (!doctor) {
         return res.status(404).json({ message: 'پزشک یافت نشد' });
@@ -520,11 +490,7 @@ export class DashboardController {
 
       const appointments = db.prepare(`
         SELECT 
-          a.id,
-          a.fdate,
-          a.appointmentTime,
-          a.status,
-          a.notes,
+          a.id, a.fdate, a.appointmentTime, a.status, a.notes,
           u.fullName as patientName,
           s.name as serviceName,
           s.price as servicePrice
@@ -533,7 +499,7 @@ export class DashboardController {
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         WHERE a.doctorId = ? AND a.clinicId = ?
         ORDER BY a.createdAt DESC
-      `).all(userId, clinicId);
+      `).all(userId, clinicId) as any[];
 
       res.json(appointments);
     } catch (error) {
@@ -629,11 +595,7 @@ export class DashboardController {
 
       const appointments = db.prepare(`
         SELECT 
-          a.id,
-          a.fdate,
-          a.appointmentTime,
-          a.status,
-          a.notes,
+          a.id, a.fdate, a.appointmentTime, a.status, a.notes,
           u.fullName as patientName,
           d.fullName as doctorName,
           s.name as serviceName
@@ -643,7 +605,7 @@ export class DashboardController {
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         WHERE a.fdate = ? AND a.clinicId = ?
         ORDER BY a.appointmentTime ASC
-      `).all(todayPersian, clinicId);
+      `).all(todayPersian, clinicId) as any[];
 
       res.json(appointments);
     } catch (error) {

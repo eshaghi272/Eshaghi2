@@ -7,27 +7,26 @@ export class UserController {
   // ========== ایجاد کاربر جدید (برای منشی) ==========
   static async create(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { fullName, nationalCode, mobile, email, password, role } = req.body;
 
-      // بررسی وجود کاربر
       const existingUser = db.prepare(
         'SELECT * FROM tbl_users WHERE nationalCode = ? OR mobile = ?'
-      ).get(nationalCode, mobile);
+      ).get(nationalCode, mobile) as any;
 
       if (existingUser) {
         return res.status(409).json({ message: 'کاربر با این کد ملی یا موبایل قبلاً ثبت شده است' });
       }
 
-      // هش کردن رمز عبور
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      // ذخیره کاربر
       const stmt = db.prepare(`
-        INSERT INTO tbl_users (fullName, nationalCode, mobile, email, passwordHash, role)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO tbl_users (clinicId, fullName, nationalCode, mobile, email, passwordHash, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
+        clinicId,
         fullName,
         nationalCode,
         mobile,
@@ -36,10 +35,9 @@ export class UserController {
         role || 'patient'
       );
 
-      // دریافت کاربر ایجاد شده
       const user = db.prepare(
         'SELECT id, fullName, nationalCode, mobile, email, role, isActive, createdAt FROM tbl_users WHERE id = ?'
-      ).get(result.lastInsertRowid);
+      ).get(result.lastInsertRowid) as any;
 
       res.status(201).json({ message: 'کاربر با موفقیت ایجاد شد', user });
     } catch (error) {
@@ -51,36 +49,29 @@ export class UserController {
   // ========== دریافت لیست کاربران ==========
   static async getAll(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { role } = req.query;
+
       let query = `
         SELECT 
-          u.id, 
-          u.fullName, 
-          u.nationalCode, 
-          u.mobile, 
-          u.email, 
-          u.role, 
-          u.isActive, 
-          u.createdAt,
-          d.id as doctorId,
-          d.specialty,
-          d.biography,
-          d.experienceYears,
-          d.consultationFee,
-          d.rating
+          u.id, u.fullName, u.nationalCode, u.mobile, u.email, 
+          u.role, u.isActive, u.createdAt,
+          d.id as doctorId, d.specialty, d.biography,
+          d.experienceYears, d.consultationFee, d.rating
         FROM tbl_users u
         LEFT JOIN tbl_doctors d ON d.userId = u.id
+        WHERE u.clinicId = ?
       `;
-      const params: any[] = [];
+      const params: any[] = [clinicId];
 
       if (role) {
-        query += ' WHERE u.role = ?';
+        query += ' AND u.role = ?';
         params.push(role);
       }
 
       query += ' ORDER BY u.createdAt DESC';
 
-      const users = db.prepare(query).all(...params);
+      const users = db.prepare(query).all(...params) as any[];
       
       const formattedUsers = users.map((user: any) => {
         if (user.role === 'doctor') {
@@ -126,26 +117,18 @@ export class UserController {
   static async getById(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
+
       const user = db.prepare(`
         SELECT 
-          u.id, 
-          u.fullName, 
-          u.nationalCode, 
-          u.mobile, 
-          u.email, 
-          u.role, 
-          u.isActive, 
-          u.createdAt,
-          d.id as doctorId,
-          d.specialty,
-          d.biography,
-          d.experienceYears,
-          d.consultationFee,
-          d.rating
+          u.id, u.fullName, u.nationalCode, u.mobile, u.email, 
+          u.role, u.isActive, u.createdAt,
+          d.id as doctorId, d.specialty, d.biography,
+          d.experienceYears, d.consultationFee, d.rating
         FROM tbl_users u
         LEFT JOIN tbl_doctors d ON d.userId = u.id
-        WHERE u.id = ?
-      `).get(id);
+        WHERE u.id = ? AND u.clinicId = ?
+      `).get(id, clinicId) as any;
 
       if (!user) {
         return res.status(404).json({ message: 'کاربر یافت نشد' });
@@ -156,9 +139,9 @@ export class UserController {
         FROM tbl_appointments a
         LEFT JOIN tbl_services s ON a.serviceId = s.id
         LEFT JOIN tbl_users u ON a.doctorId = u.id
-        WHERE a.patientId = ?
+        WHERE a.patientId = ? AND a.clinicId = ?
         ORDER BY a.createdAt DESC
-      `).all(id);
+      `).all(id, clinicId) as any[];
 
       const formattedUser: any = {
         id: user.id,
@@ -194,27 +177,18 @@ export class UserController {
   static async getMe(req: Request, res: Response) {
     try {
       const userId = (req as any).userId;
+      const clinicId = req.user?.clinicId || 1;
       
       const user = db.prepare(`
         SELECT 
-          u.id, 
-          u.fullName, 
-          u.nationalCode, 
-          u.mobile, 
-          u.email, 
-          u.role, 
-          u.isActive, 
-          u.createdAt,
-          d.id as doctorId,
-          d.specialty,
-          d.biography,
-          d.experienceYears,
-          d.consultationFee,
-          d.rating
+          u.id, u.fullName, u.nationalCode, u.mobile, u.email, 
+          u.role, u.isActive, u.createdAt,
+          d.id as doctorId, d.specialty, d.biography,
+          d.experienceYears, d.consultationFee, d.rating
         FROM tbl_users u
         LEFT JOIN tbl_doctors d ON d.userId = u.id
-        WHERE u.id = ?
-      `).get(userId);
+        WHERE u.id = ? AND u.clinicId = ?
+      `).get(userId, clinicId) as any;
 
       if (!user) {
         return res.status(404).json({ message: 'کاربر یافت نشد' });
@@ -253,9 +227,10 @@ export class UserController {
   static async updateMe(req: Request, res: Response) {
     try {
       const userId = (req as any).userId;
+      const clinicId = req.user?.clinicId || 1;
       const { fullName, email, password } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ?').get(userId);
+      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ? AND clinicId = ?').get(userId, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'کاربر یافت نشد' });
       }
@@ -285,12 +260,12 @@ export class UserController {
       updateFields.push('updatedAt = CURRENT_TIMESTAMP');
       params.push(userId);
 
-      const query = `UPDATE tbl_users SET ${updateFields.join(', ')} WHERE id = ?`;
-      db.prepare(query).run(...params);
+      const query = `UPDATE tbl_users SET ${updateFields.join(', ')} WHERE id = ? AND clinicId = ?`;
+      db.prepare(query).run(...params, clinicId);
 
       const user = db.prepare(
         'SELECT id, fullName, nationalCode, mobile, email, role, isActive, createdAt FROM tbl_users WHERE id = ?'
-      ).get(userId);
+      ).get(userId) as any;
 
       res.json({ message: 'پروفایل با موفقیت بروزرسانی شد', user });
     } catch (error) {
@@ -303,9 +278,10 @@ export class UserController {
   static async update(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       const { fullName, email, role, isActive } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'کاربر یافت نشد' });
       }
@@ -337,12 +313,12 @@ export class UserController {
       updateFields.push('updatedAt = CURRENT_TIMESTAMP');
       params.push(id);
 
-      const query = `UPDATE tbl_users SET ${updateFields.join(', ')} WHERE id = ?`;
-      db.prepare(query).run(...params);
+      const query = `UPDATE tbl_users SET ${updateFields.join(', ')} WHERE id = ? AND clinicId = ?`;
+      db.prepare(query).run(...params, clinicId);
 
       const user = db.prepare(
         'SELECT id, fullName, nationalCode, mobile, email, role, isActive FROM tbl_users WHERE id = ?'
-      ).get(id);
+      ).get(id) as any;
 
       res.json({ message: 'کاربر با موفقیت بروزرسانی شد', user });
     } catch (error) {
@@ -355,20 +331,21 @@ export class UserController {
   static async delete(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       
-      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_users WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'کاربر یافت نشد' });
       }
 
       if (existing.role === 'admin') {
-        const adminCount = db.prepare('SELECT COUNT(*) as count FROM tbl_users WHERE role = "admin"').get() as { count: number };
+        const adminCount = db.prepare('SELECT COUNT(*) as count FROM tbl_users WHERE role = "admin" AND clinicId = ?').get(clinicId) as { count: number };
         if (adminCount.count <= 1) {
           return res.status(400).json({ message: 'نمی‌توان آخرین ادمین را حذف کرد' });
         }
       }
 
-      db.prepare('DELETE FROM tbl_users WHERE id = ?').run(id);
+      db.prepare('DELETE FROM tbl_users WHERE id = ? AND clinicId = ?').run(id, clinicId);
       res.json({ message: 'کاربر با موفقیت حذف شد' });
     } catch (error) {
       console.error('Delete user error:', error);

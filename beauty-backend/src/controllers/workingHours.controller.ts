@@ -16,19 +16,17 @@ export class WorkingHoursController {
   // ========== دریافت برنامه کامل پزشک ==========
   static async getDoctorSchedule(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
 
-      // دریافت روزهای کاری
       const workingDays = db.prepare(
-        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek'
+      ).all(doctorId, clinicId) as any[];
 
-      // دریافت ساعت‌های کاری
       const workingHours = db.prepare(
-        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
+      ).all(doctorId, clinicId) as any[];
 
-      // ایجاد یک شیء کامل از برنامه هفتگی
       const schedule: any[] = [];
       
       for (let i = 0; i < 7; i++) {
@@ -41,12 +39,10 @@ export class WorkingHoursController {
           slotDuration: 30
         };
 
-        // بررسی آیا این روز کاری است
         const isWorkingDay = workingDays.some((d: any) => d.dayOfWeek === i);
         if (isWorkingDay) {
           dayData.isWorking = true;
           
-          // پیدا کردن ساعت کاری
           const hours = workingHours.find((h: any) => h.dayOfWeek === i);
           if (hours) {
             dayData.startTime = hours.startTime;
@@ -68,6 +64,7 @@ export class WorkingHoursController {
   // ========== ذخیره برنامه کامل پزشک ==========
   static async saveDoctorSchedule(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { schedule } = req.body;
 
@@ -75,28 +72,27 @@ export class WorkingHoursController {
         return res.status(400).json({ message: 'اطلاعات برنامه ناقص است' });
       }
 
-      // غیرفعال کردن تمام روزها و ساعت‌های قبلی
-      db.prepare('UPDATE tbl_working_days SET isActive = 0 WHERE doctorId = ?').run(doctorId);
-      db.prepare('UPDATE tbl_working_hours SET isActive = 0 WHERE doctorId = ?').run(doctorId);
+      db.prepare('UPDATE tbl_working_days SET isActive = 0 WHERE doctorId = ? AND clinicId = ?').run(doctorId, clinicId);
+      db.prepare('UPDATE tbl_working_hours SET isActive = 0 WHERE doctorId = ? AND clinicId = ?').run(doctorId, clinicId);
 
-      // درج روزها و ساعت‌های جدید
       const dayStmt = db.prepare(`
-        INSERT INTO tbl_working_days (doctorId, dayOfWeek, isActive)
-        VALUES (?, ?, 1)
+        INSERT INTO tbl_working_days (doctorId, clinicId, dayOfWeek, isActive)
+        VALUES (?, ?, ?, 1)
       `);
 
       const hourStmt = db.prepare(`
-        INSERT INTO tbl_working_hours (doctorId, dayOfWeek, startTime, endTime, slotDuration, isActive)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO tbl_working_hours (doctorId, clinicId, dayOfWeek, startTime, endTime, slotDuration, isActive)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
       `);
 
       for (const item of schedule) {
         if (item.isWorking) {
-          dayStmt.run(doctorId, item.dayOfWeek);
+          dayStmt.run(doctorId, clinicId, item.dayOfWeek);
           
           if (item.startTime && item.endTime) {
             hourStmt.run(
               doctorId,
+              clinicId,
               item.dayOfWeek,
               item.startTime,
               item.endTime,
@@ -106,8 +102,7 @@ export class WorkingHoursController {
         }
       }
 
-      // دریافت تنظیمات جدید
-      const newSchedule = await WorkingHoursController.getDoctorScheduleInternal(doctorId);
+      const newSchedule = await WorkingHoursController.getDoctorScheduleInternal(doctorId, clinicId);
 
       res.json({
         message: 'برنامه کاری با موفقیت ذخیره شد',
@@ -119,20 +114,17 @@ export class WorkingHoursController {
     }
   }
 
-  // ========== متد داخلی برای دریافت برنامه (بدون Request/Response) ==========
-  static async getDoctorScheduleInternal(doctorId: string) {
+  // ========== متد داخلی برای دریافت برنامه ==========
+  static async getDoctorScheduleInternal(doctorId: string, clinicId: number) {
     try {
-      // دریافت روزهای کاری
       const workingDays = db.prepare(
-        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek'
+      ).all(doctorId, clinicId) as any[];
 
-      // دریافت ساعت‌های کاری
       const workingHours = db.prepare(
-        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
+      ).all(doctorId, clinicId) as any[];
 
-      // ایجاد یک شیء کامل از برنامه هفتگی
       const schedule: any[] = [];
       
       for (let i = 0; i < 7; i++) {
@@ -145,12 +137,10 @@ export class WorkingHoursController {
           slotDuration: 30
         };
 
-        // بررسی آیا این روز کاری است
         const isWorkingDay = workingDays.some((d: any) => d.dayOfWeek === i);
         if (isWorkingDay) {
           dayData.isWorking = true;
           
-          // پیدا کردن ساعت کاری
           const hours = workingHours.find((h: any) => h.dayOfWeek === i);
           if (hours) {
             dayData.startTime = hours.startTime;
@@ -171,14 +161,14 @@ export class WorkingHoursController {
 
   // ========== روزهای کاری ==========
   
-  // دریافت روزهای کاری پزشک
   static async getWorkingDays(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       
       const workingDays = db.prepare(
-        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek'
+      ).all(doctorId, clinicId) as any[];
 
       const result = workingDays.map((day: any) => ({
         ...day,
@@ -192,9 +182,9 @@ export class WorkingHoursController {
     }
   }
 
-  // تنظیم روزهای کاری پزشک
   static async setWorkingDays(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { days } = req.body;
 
@@ -202,25 +192,22 @@ export class WorkingHoursController {
         return res.status(400).json({ message: 'لیست روزهای کاری را ارسال کنید' });
       }
 
-      // غیرفعال کردن روزهای قبلی
-      db.prepare('UPDATE tbl_working_days SET isActive = 0 WHERE doctorId = ?').run(doctorId);
+      db.prepare('UPDATE tbl_working_days SET isActive = 0 WHERE doctorId = ? AND clinicId = ?').run(doctorId, clinicId);
 
-      // افزودن روزهای جدید
       const stmt = db.prepare(`
-        INSERT INTO tbl_working_days (doctorId, dayOfWeek, isActive)
-        VALUES (?, ?, 1)
+        INSERT INTO tbl_working_days (doctorId, clinicId, dayOfWeek, isActive)
+        VALUES (?, ?, ?, 1)
       `);
 
       for (const day of days) {
         if (day >= 0 && day <= 6) {
-          stmt.run(doctorId, day);
+          stmt.run(doctorId, clinicId, day);
         }
       }
 
-      // دریافت روزهای فعال
       const workingDays = db.prepare(
-        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek'
+      ).all(doctorId, clinicId) as any[];
 
       res.json({
         message: 'روزهای کاری با موفقیت تنظیم شد',
@@ -237,14 +224,14 @@ export class WorkingHoursController {
 
   // ========== ساعت‌های کاری ==========
 
-  // دریافت ساعت‌های کاری پزشک
   static async getWorkingHours(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { dayOfWeek } = req.query;
 
-      let query = 'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND isActive = 1';
-      const params: any[] = [doctorId];
+      let query = 'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND clinicId = ? AND isActive = 1';
+      const params: any[] = [doctorId, clinicId];
 
       if (dayOfWeek !== undefined) {
         query += ' AND dayOfWeek = ?';
@@ -253,18 +240,17 @@ export class WorkingHoursController {
 
       query += ' ORDER BY dayOfWeek, startTime';
 
-      const workingHours = db.prepare(query).all(...params);
+      const workingHours = db.prepare(query).all(...params) as any[];
 
-      // دریافت زمان‌های استراحت
-      let breakQuery = 'SELECT * FROM tbl_break_times WHERE doctorId = ? AND isActive = 1';
-      const breakParams: any[] = [doctorId];
+      let breakQuery = 'SELECT * FROM tbl_break_times WHERE doctorId = ? AND clinicId = ? AND isActive = 1';
+      const breakParams: any[] = [doctorId, clinicId];
 
       if (dayOfWeek !== undefined) {
         breakQuery += ' AND dayOfWeek = ?';
         breakParams.push(Number(dayOfWeek));
       }
 
-      const breaks = db.prepare(breakQuery).all(...breakParams);
+      const breaks = db.prepare(breakQuery).all(...breakParams) as any[];
 
       res.json({
         workingHours: workingHours.map((h: any) => ({
@@ -279,9 +265,9 @@ export class WorkingHoursController {
     }
   }
 
-  // تنظیم ساعت‌های کاری پزشک
   static async setWorkingHours(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { dayOfWeek, startTime, endTime, slotDuration } = req.body;
 
@@ -289,22 +275,19 @@ export class WorkingHoursController {
         return res.status(400).json({ message: 'اطلاعات ناقص است' });
       }
 
-      // غیرفعال کردن ساعت قبلی برای این روز
       db.prepare(
-        'UPDATE tbl_working_hours SET isActive = 0 WHERE doctorId = ? AND dayOfWeek = ?'
-      ).run(doctorId, dayOfWeek);
+        'UPDATE tbl_working_hours SET isActive = 0 WHERE doctorId = ? AND clinicId = ? AND dayOfWeek = ?'
+      ).run(doctorId, clinicId, dayOfWeek);
 
-      // افزودن ساعت جدید
       const stmt = db.prepare(`
-        INSERT INTO tbl_working_hours (doctorId, dayOfWeek, startTime, endTime, slotDuration, isActive)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO tbl_working_hours (doctorId, clinicId, dayOfWeek, startTime, endTime, slotDuration, isActive)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
       `);
-      stmt.run(doctorId, dayOfWeek, startTime, endTime, slotDuration || 30);
+      stmt.run(doctorId, clinicId, dayOfWeek, startTime, endTime, slotDuration || 30);
 
-      // دریافت ساعت‌های فعال
       const workingHours = db.prepare(
-        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
-      ).all(doctorId);
+        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
+      ).all(doctorId, clinicId) as any[];
 
       res.json({
         message: 'ساعت‌های کاری با موفقیت تنظیم شد',
@@ -321,9 +304,9 @@ export class WorkingHoursController {
 
   // ========== زمان‌های استراحت ==========
 
-  // تنظیم زمان استراحت
   static async setBreakTime(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { dayOfWeek, startTime, endTime } = req.body;
 
@@ -332,14 +315,14 @@ export class WorkingHoursController {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO tbl_break_times (doctorId, dayOfWeek, startTime, endTime, isActive)
-        VALUES (?, ?, ?, ?, 1)
+        INSERT INTO tbl_break_times (doctorId, clinicId, dayOfWeek, startTime, endTime, isActive)
+        VALUES (?, ?, ?, ?, ?, 1)
       `);
-      stmt.run(doctorId, dayOfWeek, startTime, endTime);
+      stmt.run(doctorId, clinicId, dayOfWeek, startTime, endTime);
 
       const breaks = db.prepare(
-        'SELECT * FROM tbl_break_times WHERE doctorId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
-      ).all(doctorId);
+        'SELECT * FROM tbl_break_times WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY dayOfWeek, startTime'
+      ).all(doctorId, clinicId) as any[];
 
       res.json({
         message: 'زمان استراحت با موفقیت تنظیم شد',
@@ -351,12 +334,12 @@ export class WorkingHoursController {
     }
   }
 
-  // حذف زمان استراحت
   static async deleteBreakTime(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       
-      const result = db.prepare('UPDATE tbl_break_times SET isActive = 0 WHERE id = ?').run(id);
+      const result = db.prepare('UPDATE tbl_break_times SET isActive = 0 WHERE id = ? AND clinicId = ?').run(id, clinicId);
 
       if (result.changes === 0) {
         return res.status(404).json({ message: 'زمان استراحت یافت نشد' });
@@ -371,14 +354,14 @@ export class WorkingHoursController {
 
   // ========== روزهای غیرفعال (تعطیلات) ==========
 
-  // دریافت روزهای غیرفعال
   static async getUnavailableDates(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       
       const dates = db.prepare(
-        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND isActive = 1 ORDER BY fdate'
-      ).all(doctorId);
+        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY fdate'
+      ).all(doctorId, clinicId) as any[];
 
       res.json(dates);
     } catch (error) {
@@ -387,9 +370,9 @@ export class WorkingHoursController {
     }
   }
 
-  // افزودن روز غیرفعال
   static async addUnavailableDate(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId } = req.params;
       const { fdate, reason } = req.body;
 
@@ -398,14 +381,14 @@ export class WorkingHoursController {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO tbl_unavailable_dates (doctorId, fdate, reason, isActive)
-        VALUES (?, ?, ?, 1)
+        INSERT INTO tbl_unavailable_dates (doctorId, clinicId, fdate, reason, isActive)
+        VALUES (?, ?, ?, ?, 1)
       `);
-      stmt.run(doctorId, fdate, reason || null);
+      stmt.run(doctorId, clinicId, fdate, reason || null);
 
       const dates = db.prepare(
-        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND isActive = 1 ORDER BY fdate'
-      ).all(doctorId);
+        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND clinicId = ? AND isActive = 1 ORDER BY fdate'
+      ).all(doctorId, clinicId) as any[];
 
       res.json({
         message: 'روز غیرفعال با موفقیت افزوده شد',
@@ -417,12 +400,12 @@ export class WorkingHoursController {
     }
   }
 
-  // حذف روز غیرفعال
   static async deleteUnavailableDate(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       
-      const result = db.prepare('UPDATE tbl_unavailable_dates SET isActive = 0 WHERE id = ?').run(id);
+      const result = db.prepare('UPDATE tbl_unavailable_dates SET isActive = 0 WHERE id = ? AND clinicId = ?').run(id, clinicId);
 
       if (result.changes === 0) {
         return res.status(404).json({ message: 'روز غیرفعال یافت نشد' });
@@ -438,6 +421,7 @@ export class WorkingHoursController {
   // ========== دریافت زمان‌های خالی ==========
   static async getAvailableSlotsAdvanced(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { doctorId, date } = req.query;
 
       if (!doctorId || !date) {
@@ -458,8 +442,8 @@ export class WorkingHoursController {
 
       // بررسی روز کاری
       const workingDay = db.prepare(
-        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND dayOfWeek = ? AND isActive = 1'
-      ).get(doctorIdNum, persianDayOfWeek);
+        'SELECT * FROM tbl_working_days WHERE doctorId = ? AND clinicId = ? AND dayOfWeek = ? AND isActive = 1'
+      ).get(doctorIdNum, clinicId, persianDayOfWeek) as any;
 
       if (!workingDay) {
         return res.status(400).json({ message: 'این روز برای پزشک غیرفعال است' });
@@ -467,8 +451,8 @@ export class WorkingHoursController {
 
       // بررسی روز غیرفعال
       const unavailable = db.prepare(
-        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND fdate = ? AND isActive = 1'
-      ).get(doctorIdNum, dateStr);
+        'SELECT * FROM tbl_unavailable_dates WHERE doctorId = ? AND clinicId = ? AND fdate = ? AND isActive = 1'
+      ).get(doctorIdNum, clinicId, dateStr) as any;
 
       if (unavailable) {
         return res.status(400).json({ message: 'این تاریخ برای پزشک غیرفعال است' });
@@ -476,8 +460,8 @@ export class WorkingHoursController {
 
       // دریافت ساعت‌های کاری
       const workingHours = db.prepare(
-        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND dayOfWeek = ? AND isActive = 1'
-      ).get(doctorIdNum, persianDayOfWeek);
+        'SELECT * FROM tbl_working_hours WHERE doctorId = ? AND clinicId = ? AND dayOfWeek = ? AND isActive = 1'
+      ).get(doctorIdNum, clinicId, persianDayOfWeek) as any;
 
       if (!workingHours) {
         return res.status(400).json({ message: 'ساعت کاری برای این روز تنظیم نشده است' });
@@ -485,14 +469,14 @@ export class WorkingHoursController {
 
       // دریافت زمان‌های استراحت
       const breaks = db.prepare(
-        'SELECT * FROM tbl_break_times WHERE doctorId = ? AND dayOfWeek = ? AND isActive = 1'
-      ).all(doctorIdNum, persianDayOfWeek);
+        'SELECT * FROM tbl_break_times WHERE doctorId = ? AND clinicId = ? AND dayOfWeek = ? AND isActive = 1'
+      ).all(doctorIdNum, clinicId, persianDayOfWeek) as any[];
 
       // دریافت نوبت‌های رزرو شده
       const booked = db.prepare(`
         SELECT appointmentTime FROM tbl_appointments 
-        WHERE doctorId = ? AND fdate = ? AND status != 'cancelled'
-      `).all(doctorIdNum, dateStr);
+        WHERE doctorId = ? AND clinicId = ? AND fdate = ? AND status != 'cancelled'
+      `).all(doctorIdNum, clinicId, dateStr) as any[];
 
       const bookedTimes = booked.map((b: any) => b.appointmentTime);
 

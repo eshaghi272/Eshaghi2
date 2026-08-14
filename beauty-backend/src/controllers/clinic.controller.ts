@@ -31,7 +31,7 @@ export class ClinicController {
           updatedAt
         FROM tbl_clinics 
         WHERE id = ?
-      `).get(clinicId);
+      `).get(clinicId) as any;
 
       if (!clinic) {
         return res.status(404).json({ message: 'کلینیک یافت نشد' });
@@ -64,7 +64,7 @@ export class ClinicController {
           updatedAt
         FROM tbl_clinics 
         ORDER BY createdAt DESC
-      `).all();
+      `).all() as any[];
 
       res.json(clinics);
     } catch (error) {
@@ -94,14 +94,12 @@ export class ClinicController {
         description
       } = req.body;
 
-      // اعتبارسنجی
       if (!clinicName) {
         return res.status(400).json({ message: 'نام کلینیک الزامی است' });
       }
 
-      // بررسی کد کلینیک تکراری
       if (clinicCode) {
-        const existing = db.prepare('SELECT id FROM tbl_clinics WHERE clinicCode = ?').get(clinicCode);
+        const existing = db.prepare('SELECT id FROM tbl_clinics WHERE clinicCode = ?').get(clinicCode) as any;
         if (existing) {
           return res.status(409).json({ message: 'کد کلینیک قبلاً ثبت شده است' });
         }
@@ -129,7 +127,7 @@ export class ClinicController {
         description || null
       );
 
-      const clinic = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(result.lastInsertRowid);
+      const clinic = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(result.lastInsertRowid) as any;
 
       res.status(201).json({
         message: 'کلینیک با موفقیت ایجاد شد',
@@ -160,14 +158,13 @@ export class ClinicController {
         isActive
       } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id) as any;
       if (!existing) {
         return res.status(404).json({ message: 'کلینیک یافت نشد' });
       }
 
-      // بررسی کد کلینیک تکراری
       if (clinicCode && clinicCode !== existing.clinicCode) {
-        const duplicate = db.prepare('SELECT id FROM tbl_clinics WHERE clinicCode = ? AND id != ?').get(clinicCode, id);
+        const duplicate = db.prepare('SELECT id FROM tbl_clinics WHERE clinicCode = ? AND id != ?').get(clinicCode, id) as any;
         if (duplicate) {
           return res.status(409).json({ message: 'کد کلینیک قبلاً ثبت شده است' });
         }
@@ -207,7 +204,7 @@ export class ClinicController {
         id
       );
 
-      const clinic = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id);
+      const clinic = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id) as any;
 
       res.json({
         message: 'اطلاعات کلینیک با موفقیت بروزرسانی شد',
@@ -224,12 +221,11 @@ export class ClinicController {
     try {
       const { id } = req.params;
 
-      const existing = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_clinics WHERE id = ?').get(id) as any;
       if (!existing) {
         return res.status(404).json({ message: 'کلینیک یافت نشد' });
       }
 
-      // بررسی اینکه آخرین کلینیک نباشد
       const count = db.prepare('SELECT COUNT(*) as count FROM tbl_clinics').get() as { count: number };
       if (count.count <= 1) {
         return res.status(400).json({ message: 'نمی‌توان آخرین کلینیک را حذف کرد' });

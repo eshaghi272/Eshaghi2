@@ -6,17 +6,19 @@ export class ServiceController {
   // ========== دریافت لیست خدمات ==========
   static async getAll(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { active } = req.query;
-      let query = 'SELECT * FROM tbl_services';
-      const params: any[] = [];
+      
+      let query = 'SELECT * FROM tbl_services WHERE clinicId = ?';
+      const params: any[] = [clinicId];
       
       if (active === 'true') {
-        query += ' WHERE isActive = 1';
+        query += ' AND isActive = 1';
       }
       
       query += ' ORDER BY name ASC';
       
-      const services = db.prepare(query).all(...params);
+      const services = db.prepare(query).all(...params) as any[];
       res.json(services);
     } catch (error) {
       console.error('Get services error:', error);
@@ -28,7 +30,9 @@ export class ServiceController {
   static async getById(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(id);
+      const clinicId = req.user?.clinicId || 1;
+
+      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
 
       if (!service) {
         return res.status(404).json({ message: 'خدمت یافت نشد' });
@@ -44,6 +48,7 @@ export class ServiceController {
   // ========== ایجاد خدمت جدید ==========
   static async create(req: Request, res: Response) {
     try {
+      const clinicId = req.user?.clinicId || 1;
       const { name, description, price, durationMinutes, category, imageUrl } = req.body;
 
       if (!name || !price || !durationMinutes) {
@@ -51,10 +56,12 @@ export class ServiceController {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO tbl_services (name, description, price, durationMinutes, category, imageUrl)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO tbl_services (clinicId, name, description, price, durationMinutes, category, imageUrl)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
+      
       const result = stmt.run(
+        clinicId,
         name, 
         description || null, 
         price, 
@@ -63,7 +70,7 @@ export class ServiceController {
         imageUrl || null
       );
 
-      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(result.lastInsertRowid);
+      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(result.lastInsertRowid) as any;
       res.status(201).json({ message: 'خدمت با موفقیت ایجاد شد', service });
     } catch (error) {
       console.error('Create service error:', error);
@@ -75,9 +82,10 @@ export class ServiceController {
   static async update(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const clinicId = req.user?.clinicId || 1;
       const { name, description, price, durationMinutes, category, imageUrl, isActive } = req.body;
 
-      const existing = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(id);
+      const existing = db.prepare('SELECT * FROM tbl_services WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
       if (!existing) {
         return res.status(404).json({ message: 'خدمت یافت نشد' });
       }
@@ -86,8 +94,9 @@ export class ServiceController {
         UPDATE tbl_services 
         SET name = ?, description = ?, price = ?, durationMinutes = ?, 
             category = ?, imageUrl = ?, isActive = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND clinicId = ?
       `);
+      
       stmt.run(
         name || existing.name,
         description !== undefined ? description : existing.description,
@@ -96,10 +105,11 @@ export class ServiceController {
         category !== undefined ? category : existing.category,
         imageUrl !== undefined ? imageUrl : existing.imageUrl,
         isActive !== undefined ? isActive : existing.isActive,
-        id
+        id,
+        clinicId
       );
 
-      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(id);
+      const service = db.prepare('SELECT * FROM tbl_services WHERE id = ?').get(id) as any;
       res.json({ message: 'خدمت با موفقیت بروزرسانی شد', service });
     } catch (error) {
       console.error('Update service error:', error);
@@ -111,7 +121,14 @@ export class ServiceController {
   static async delete(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const result = db.prepare('DELETE FROM tbl_services WHERE id = ?').run(id);
+      const clinicId = req.user?.clinicId || 1;
+
+      const existing = db.prepare('SELECT * FROM tbl_services WHERE id = ? AND clinicId = ?').get(id, clinicId) as any;
+      if (!existing) {
+        return res.status(404).json({ message: 'خدمت یافت نشد' });
+      }
+
+      const result = db.prepare('DELETE FROM tbl_services WHERE id = ? AND clinicId = ?').run(id, clinicId);
 
       if (result.changes === 0) {
         return res.status(404).json({ message: 'خدمت یافت نشد' });

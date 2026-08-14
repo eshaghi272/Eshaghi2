@@ -3,11 +3,6 @@ import { Request, Response } from 'express';
 import { db } from '../config/database';
 
 export class FinancialController {
-  // ============================================
-  // ===== گزارش مالی جامع =====
-  // ============================================
-
-  // دریافت گزارش مالی کلی
   static async getFinancialReport(req: Request, res: Response) {
     try {
       const clinicId = req.user?.clinicId || 1;
@@ -21,7 +16,6 @@ export class FinancialController {
         params.push(startDate, endDate);
       }
 
-      // ===== 1. خلاصه کلی =====
       const overview = db.prepare(`
         SELECT 
           COUNT(*) as totalTreatments,
@@ -39,9 +33,8 @@ export class FinancialController {
           COUNT(CASE WHEN t.paymentStatus = 'pending' THEN 1 END) as unpaidTreatments
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
-      `).get(...params);
+      `).get(...params) as any;
 
-      // ===== 2. درآمد روزانه/ماهانه/سالانه =====
       let groupBy = '';
       let dateFormat = '';
 
@@ -74,26 +67,21 @@ export class FinancialController {
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY ${groupBy}
-        ORDER BY t.createdAt DESC
-        LIMIT 12
-      `).all(...params);
+        ORDER BY t.createdAt DESC LIMIT 12
+      `).all(...params) as any[];
 
-      // ===== 3. آمار خدمات =====
       const serviceStats = db.prepare(`
         SELECT 
-          t.serviceName,
-          COUNT(*) as count,
+          t.serviceName, COUNT(*) as count,
           COALESCE(SUM(t.finalTotal), 0) as totalRevenue,
           COALESCE(AVG(t.finalTotal), 0) as averagePrice,
           COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completedCount
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY t.serviceName
-        ORDER BY totalRevenue DESC
-        LIMIT 10
-      `).all(...params);
+        ORDER BY totalRevenue DESC LIMIT 10
+      `).all(...params) as any[];
 
-      // ===== 4. آمار پزشکان =====
       const doctorStats = db.prepare(`
         SELECT 
           u.fullName as doctorName,
@@ -107,9 +95,8 @@ export class FinancialController {
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY t.doctorId
         ORDER BY totalRevenue DESC
-      `).all(...params);
+      `).all(...params) as any[];
 
-      // ===== 5. روند درآمد =====
       const revenueTrend = db.prepare(`
         SELECT 
           strftime('%Y-%m', t.createdAt) as month,
@@ -118,11 +105,9 @@ export class FinancialController {
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY strftime('%Y-%m', t.createdAt)
-        ORDER BY t.createdAt ASC
-        LIMIT 12
-      `).all(...params);
+        ORDER BY t.createdAt ASC LIMIT 12
+      `).all(...params) as any[];
 
-      // ===== 6. وضعیت پرداخت‌ها =====
       const paymentStatus = db.prepare(`
         SELECT 
           t.paymentStatus,
@@ -133,37 +118,25 @@ export class FinancialController {
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY t.paymentStatus
-      `).all(...params);
+      `).all(...params) as any[];
 
-      // ===== 7. هزینه‌های جاری =====
       const currentCosts = db.prepare(`
-        SELECT 
-          'مواد مصرفی' as category,
-          COALESCE(SUM(totalMaterialsCost), 0) as amount
-        FROM tbl_treatments
-        WHERE clinicId = ? ${dateFilter}
+        SELECT 'مواد مصرفی' as category, COALESCE(SUM(totalMaterialsCost), 0) as amount
+        FROM tbl_treatments WHERE clinicId = ? ${dateFilter}
         UNION ALL
-        SELECT 
-          'داروها' as category,
-          COALESCE(SUM(totalMedicinesCost), 0) as amount
-        FROM tbl_treatments
-        WHERE clinicId = ? ${dateFilter}
+        SELECT 'داروها' as category, COALESCE(SUM(totalMedicinesCost), 0) as amount
+        FROM tbl_treatments WHERE clinicId = ? ${dateFilter}
         UNION ALL
-        SELECT 
-          'هزینه‌های اضافی' as category,
-          COALESCE(SUM(totalExtraCosts), 0) as amount
-        FROM tbl_treatments
-        WHERE clinicId = ? ${dateFilter}
+        SELECT 'هزینه‌های اضافی' as category, COALESCE(SUM(totalExtraCosts), 0) as amount
+        FROM tbl_treatments WHERE clinicId = ? ${dateFilter}
         UNION ALL
-        SELECT 
-          'دستمزد پزشکان' as category,
-          COALESCE(SUM(doctorWage), 0) as amount
-        FROM tbl_treatments
-        WHERE clinicId = ? ${dateFilter}
-      `).all(...params, ...params, ...params, ...params);
+        SELECT 'دستمزد پزشکان' as category, COALESCE(SUM(doctorWage), 0) as amount
+        FROM tbl_treatments WHERE clinicId = ? ${dateFilter}
+      `).all(...params, ...params, ...params, ...params) as any[];
 
+      const ov = overview || {};
       res.json({
-        overview,
+        overview: ov,
         revenueByPeriod,
         serviceStats,
         doctorStats,
@@ -171,14 +144,12 @@ export class FinancialController {
         paymentStatus,
         currentCosts,
         summary: {
-          totalRevenue: overview?.totalRevenue || 0,
-          totalProfit: overview?.totalClinicProfit || 0,
-          totalCosts: (overview?.totalMaterialsCost || 0) + 
-                      (overview?.totalMedicinesCost || 0) + 
-                      (overview?.totalExtraCosts || 0) +
-                      (overview?.totalDoctorWage || 0),
-          successRate: overview?.totalTreatments > 0 
-            ? Math.round((overview?.completedTreatments / overview?.totalTreatments) * 100)
+          totalRevenue: ov.totalRevenue || 0,
+          totalProfit: ov.totalClinicProfit || 0,
+          totalCosts: (ov.totalMaterialsCost || 0) + (ov.totalMedicinesCost || 0) + 
+                      (ov.totalExtraCosts || 0) + (ov.totalDoctorWage || 0),
+          successRate: ov.totalTreatments > 0 
+            ? Math.round((ov.completedTreatments / ov.totalTreatments) * 100)
             : 0
         }
       });
@@ -187,10 +158,6 @@ export class FinancialController {
       res.status(500).json({ message: 'خطا در دریافت گزارش مالی' });
     }
   }
-
-  // ============================================
-  // ===== گزارش درآمد پزشکان =====
-  // ============================================
 
   static async getDoctorEarnings(req: Request, res: Response) {
     try {
@@ -221,7 +188,7 @@ export class FinancialController {
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY t.doctorId
         ORDER BY totalRevenue DESC
-      `).all(...params);
+      `).all(...params) as any[];
 
       res.json(doctors);
     } catch (error) {
@@ -229,10 +196,6 @@ export class FinancialController {
       res.status(500).json({ message: 'خطا در دریافت درآمد پزشکان' });
     }
   }
-
-  // ============================================
-  // ===== گزارش خدمات پرفروش =====
-  // ============================================
 
   static async getTopServices(req: Request, res: Response) {
     try {
@@ -257,9 +220,8 @@ export class FinancialController {
         FROM tbl_treatments t
         WHERE t.clinicId = ? ${dateFilter}
         GROUP BY t.serviceName
-        ORDER BY totalRevenue DESC
-        LIMIT ?
-      `).all(...params, Number(limit));
+        ORDER BY totalRevenue DESC LIMIT ?
+      `).all(...params, Number(limit)) as any[];
 
       res.json(services);
     } catch (error) {
@@ -267,10 +229,6 @@ export class FinancialController {
       res.status(500).json({ message: 'خطا در دریافت خدمات پرفروش' });
     }
   }
-
-  // ============================================
-  // ===== گزارش روزانه/ماهانه =====
-  // ============================================
 
   static async getDailyReport(req: Request, res: Response) {
     try {
@@ -290,12 +248,9 @@ export class FinancialController {
           COUNT(CASE WHEN paymentStatus = 'pending' THEN 1 END) as unpaid
         FROM tbl_treatments
         WHERE clinicId = ? AND date(createdAt) = ?
-      `).get(clinicId, date);
+      `).get(clinicId, date) as any;
 
-      res.json({
-        date,
-        ...report
-      });
+      res.json({ date, ...report });
     } catch (error) {
       console.error('❌ Daily report error:', error);
       res.status(500).json({ message: 'خطا در دریافت گزارش روزانه' });
