@@ -1,3 +1,4 @@
+# Path: render.yaml
 services:
   - type: web
     name: eshaghi2
@@ -5,7 +6,10 @@ services:
     repo: https://github.com/eshaghi272/Eshaghi2
     plan: free
     rootDir: beauty-backend
-    buildCommand: npm install && npm run build
+    buildCommand: |
+      npm install
+      npm rebuild better-sqlite3
+      npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
