@@ -21,11 +21,9 @@ import galleryRoutes from './routes/gallery.routes';
 dotenv.config();
 
 const app = express();
-
-// ===== پورت صحیح برای Render =====
 const PORT = parseInt(process.env.PORT || '10000', 10);
 
-// ===== CORS =====
+// CORS
 app.use(cors({
   origin: '*',
   credentials: true,
@@ -33,11 +31,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
-// ===== Middleware =====
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ===== Routes =====
+// Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/site', siteRoutes);
@@ -53,7 +50,7 @@ app.use('/api/v1/contact', contactRoutes);
 app.use('/api/v1/financial', financialRoutes);
 app.use('/api/v1/gallery', galleryRoutes);
 
-// ===== Health Check =====
+// Health Check
 app.get('/health', (_req, res) => {
   res.json({ 
     status: 'ok', 
@@ -64,21 +61,19 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// ===== Root =====
 app.get('/', (_req, res) => {
   res.json({ 
     message: '💎 Beauty Clinic API is running on Render!',
-    version: '1.0.0',
-    port: PORT
+    version: '1.0.0'
   });
 });
 
-// ===== 404 =====
+// 404
 app.use((_req, res) => {
   res.status(404).json({ message: 'مسیر مورد نظر یافت نشد' });
 });
 
-// ===== Error Handler =====
+// Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('❌ Server Error:', err);
   res.status(err.status || 500).json({
@@ -86,7 +81,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-// ===== Start =====
+// Start
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
