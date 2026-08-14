@@ -2,6 +2,7 @@
 import { createContext, useState, useEffect, ReactNode } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import { API_URL } from '../config/api'
 
 interface User {
   id: number
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   
-  // بررسی وضعیت احراز هویت در شروع
+  // ===== بررسی وضعیت احراز هویت در شروع =====
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('access_token')
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           // تایید اعتبار توکن با درخواست به سرور
           try {
-            const response = await axios.get('/api/v1/users/me')
+            const response = await axios.get(`${API_URL}/api/v1/users/me`)
             // بروزرسانی اطلاعات کاربر از سرور
             if (response.data) {
               const updatedUser = { ...userData, ...response.data }
@@ -86,10 +87,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initAuth()
   }, [])
   
+  // ===== لاگین =====
   const login = async (credentials: { username: string; password: string }) => {
     try {
-      // ارسال درخواست به API
-      const response = await axios.post('/api/v1/auth/login', {
+      // ارسال درخواست به API با استفاده از API_URL
+      const response = await axios.post(`${API_URL}/api/v1/auth/login`, {
         username: credentials.username,
         password: credentials.password
       })
@@ -130,6 +132,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
   
+  // ===== خروج =====
   const logout = () => {
     // پاک کردن اطلاعات از localStorage
     localStorage.removeItem('access_token')
@@ -145,6 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     navigate('/login')
   }
   
+  // ===== بروزرسانی اطلاعات کاربر =====
   const refreshUser = async () => {
     try {
       const token = localStorage.getItem('access_token')
@@ -155,8 +159,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // تنظیم هدر Authorization
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
-      // دریافت اطلاعات کاربر از سرور
-      const response = await axios.get('/api/v1/users/me')
+      // دریافت اطلاعات کاربر از سرور با استفاده از API_URL
+      const response = await axios.get(`${API_URL}/api/v1/users/me`)
       const userData = response.data
       
       if (!userData) {
