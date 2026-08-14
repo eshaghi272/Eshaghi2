@@ -1,0 +1,8 @@
+# Path: backend/.dockerignore
+node_modules
+dist
+*.log
+.env
+.git
+.gitignore
+README.md
