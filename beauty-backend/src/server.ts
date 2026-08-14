@@ -1,4 +1,3 @@
-// Path: beauty-backend/src/server.ts
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -23,7 +22,6 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || '10000', 10);
 
-// CORS
 app.use(cors({
   origin: '*',
   credentials: true,
@@ -34,7 +32,6 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/site', siteRoutes);
@@ -50,7 +47,6 @@ app.use('/api/v1/contact', contactRoutes);
 app.use('/api/v1/financial', financialRoutes);
 app.use('/api/v1/gallery', galleryRoutes);
 
-// Health Check
 app.get('/health', (_req, res) => {
   res.json({ 
     status: 'ok', 
@@ -64,16 +60,15 @@ app.get('/health', (_req, res) => {
 app.get('/', (_req, res) => {
   res.json({ 
     message: '💎 Beauty Clinic API is running on Render!',
-    version: '1.0.0'
+    version: '1.0.0',
+    port: PORT
   });
 });
 
-// 404
 app.use((_req, res) => {
   res.status(404).json({ message: 'مسیر مورد نظر یافت نشد' });
 });
 
-// Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('❌ Server Error:', err);
   res.status(err.status || 500).json({
@@ -81,7 +76,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-// Start
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
