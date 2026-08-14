@@ -42,7 +42,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
       const decoded = jwt.verify(token, secret) as JwtPayload;
       req.userId = decoded.id;
       
-      const user = db.prepare('SELECT * FROM tbl_users WHERE id = ? AND isActive = 1').get(decoded.id);
+      const user = db.prepare('SELECT * FROM tbl_users WHERE id = ? AND isActive = 1').get(decoded.id) as any;
       if (!user) {
         console.log(`❌ User not found: ${decoded.id}`);
         return res.status(401).json({ message: 'کاربر یافت نشد' });
@@ -68,7 +68,6 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 // Middleware بررسی نقش‌ها
 // ============================================
 
-// ===== بررسی نقش ادمین =====
 export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
@@ -90,7 +89,6 @@ export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-// ===== بررسی نقش پزشک =====
 export const isDoctor = (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
@@ -122,7 +120,6 @@ export const isDoctor = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-// ===== بررسی نقش منشی =====
 export const isReceptionist = (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
@@ -145,7 +142,6 @@ export const isReceptionist = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
-// ===== بررسی نقش بیمار =====
 export const isPatient = (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
@@ -168,7 +164,6 @@ export const isPatient = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-// ===== بررسی نقش‌های مجاز (چند نقش) =====
 export const hasRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -179,7 +174,6 @@ export const hasRole = (roles: string[]) => {
       const userRole = req.user.role?.trim()?.toLowerCase();
       console.log(`🔍 hasRole: user role = "${userRole}", allowed = ${roles.join(', ')}`);
       
-      // ادمین به همه چیز دسترسی دارد
       if (userRole === 'admin') {
         console.log(`✅ hasRole: admin access granted`);
         return next();
@@ -200,7 +194,7 @@ export const hasRole = (roles: string[]) => {
 };
 
 // ============================================
-// Middleware بررسی مالکیت
+// ===== بررسی مالکیت =====
 // ============================================
 
 export const isOwner = (req: Request, res: Response, next: NextFunction) => {
@@ -211,7 +205,6 @@ export const isOwner = (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ message: 'احراز هویت لازم است' });
     }
 
-    // ادمین همیشه دسترسی دارد
     if (req.user.role === 'admin') {
       return next();
     }
@@ -228,7 +221,7 @@ export const isOwner = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // ============================================
-// Middleware بررسی دسترسی به کلینیک
+// ===== بررسی دسترسی به کلینیک =====
 // ============================================
 
 export const hasClinicAccess = (req: Request, res: Response, next: NextFunction) => {
@@ -242,12 +235,10 @@ export const hasClinicAccess = (req: Request, res: Response, next: NextFunction)
       return res.status(401).json({ message: 'احراز هویت لازم است' });
     }
 
-    // ادمین به همه کلینیک‌ها دسترسی دارد
     if (req.user.role === 'admin') {
       return next();
     }
 
-    // کاربر فقط به کلینیک خود دسترسی دارد
     if (req.user.clinicId !== clinicId) {
       return res.status(403).json({ message: 'شما به این کلینیک دسترسی ندارید' });
     }
@@ -260,7 +251,7 @@ export const hasClinicAccess = (req: Request, res: Response, next: NextFunction)
 };
 
 // ============================================
-// Middleware بررسی نقش‌های ترکیبی
+// ===== بررسی نقش‌های ترکیبی =====
 // ============================================
 
 export const isDoctorOrAdmin = (req: Request, res: Response, next: NextFunction) => {
@@ -312,7 +303,7 @@ export const isPatientOrAdmin = (req: Request, res: Response, next: NextFunction
 };
 
 // ============================================
-// Middleware بررسی دسترسی به کاربر خاص
+// ===== بررسی دسترسی به کاربر خاص =====
 // ============================================
 
 export const canAccessUser = (req: Request, res: Response, next: NextFunction) => {
@@ -323,20 +314,17 @@ export const canAccessUser = (req: Request, res: Response, next: NextFunction) =
       return res.status(401).json({ message: 'احراز هویت لازم است' });
     }
 
-    // ادمین به همه کاربران دسترسی دارد
     if (req.user.role === 'admin') {
       return next();
     }
 
-    // منشی و پزشک می‌توانند به بیماران دسترسی داشته باشند
     if ((req.user.role === 'receptionist' || req.user.role === 'doctor') && req.user.clinicId) {
-      const targetUser = db.prepare('SELECT clinicId, role FROM tbl_users WHERE id = ?').get(targetUserId);
+      const targetUser = db.prepare('SELECT clinicId, role FROM tbl_users WHERE id = ?').get(targetUserId) as any;
       if (targetUser && targetUser.clinicId === req.user.clinicId) {
         return next();
       }
     }
 
-    // کاربر فقط به خودش دسترسی دارد
     if (req.user.id === targetUserId) {
       return next();
     }
