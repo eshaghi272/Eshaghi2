@@ -1,17 +1,16 @@
-# Path: render.yaml (در ریشه پروژه - D:\Eshaghi)
+# Path: render.yaml (در ریشه پروژه - کنار پوشه‌های beauty-backend و beauty-frontend)
 services:
   - type: web
-    name: beauty-clinic-backend
-    runtime: docker
+    name: eshaghi2
+    runtime: node
     repo: https://github.com/eshaghi272/Eshaghi2
     plan: free
-    dockerfilePath: ./backend/Dockerfile
-    rootDir: ./backend
+    rootDir: beauty-backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
-      - key: PORT
-        value: 10000
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        value: /app/clinic.db
+      - key: PORT
+        value: 10000
     healthCheckPath: /health
